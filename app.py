@@ -29,18 +29,8 @@ def to_nine(g):
 
 
 def required_average(grades, remaining, target):
-    """남은 성적 합계를 0.01 단위로 탐색해 계단형 환산표를 정확히 역산."""
-    earned = sum(round(g * 100) for g in grades)
-    lo, hi = remaining * 100, remaining * 500
-    best = lo
-    while lo <= hi:
-        mid = (lo + hi) // 2
-        if to_nine((earned + mid) / 500) <= target + 1e-9:
-            best = mid
-            lo = mid + 1
-        else:
-            hi = mid - 1
-    return best / (100 * remaining)
+    """입력/목표/로드맵 모두 5등급제. 환산은 계산에 사용하지 않는다."""
+    return (5 * target - sum(grades)) / remaining
 
 
 def make_plan(required_mean, count, mode):
@@ -65,122 +55,121 @@ def make_plan(required_mean, count, mode):
 
 def main():
     st.set_page_config(page_title='GRADE PATH | 내신 로드맵', page_icon='🎯', layout='wide')
-    st.markdown('''<style>
-    .stApp {background: #f7f9fc;}
-    .block-container {max-width:1100px; padding-top:11rem;}
-    h1,h2,h3 {letter-spacing:-0.045em;}
-    .grade-pin {position:fixed; top:3.75rem; left:50%; transform:translateX(-50%); width:min(94vw,1052px); z-index:990;
-      background:#12233f; color:white; padding:18px 24px; border-radius:18px;
-      box-shadow:0 8px 24px #14233f20; margin-bottom:22px;
-      display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;}
-    .grade-pin small {color:#d7e2f6;} .grade-pin strong {font-size:2rem; color:#84ead2;}
-    .mode-card {background:white; border:1px solid #e2e8f0; border-radius:16px;
-      padding:18px; min-height:145px; margin-bottom:16px;}
-    .mode-card p {color:#526277; margin-bottom:0;}
-    @media(max-width:640px) {.grade-pin {top:3.5rem; padding:12px 16px;}
-      .grade-pin strong {font-size:1.5rem;}}
-    </style>''', unsafe_allow_html=True)
-    st.caption('GRADE PATH · 나의 내신 목표 설계')
-    st.title('지금 성적에서, 목표까지 🎯')
-    st.write('5등급제 학기 평균을 입력하면 현재 위치와 남은 학기별 목표를 함께 보여드려요.')
+    st.markdown("""<style>
+    .stApp {background:#f7f9fc;color:#172c48;}
+    .block-container {max-width:1100px;padding-top:2rem;}
+    h1,h2,h3 {letter-spacing:-.04em;}
+    .grade-pin {position:fixed;top:3.6rem;left:50%;transform:translateX(-50%);
+      width:min(94vw,1052px);z-index:990;box-sizing:border-box;
+      background:#12233f;color:white;padding:16px 22px;border-radius:16px;
+      box-shadow:0 8px 24px #14233f20;display:flex;gap:20px;flex-wrap:wrap;
+      justify-content:space-between;align-items:center;}
+    .grade-pin strong {font-size:1.9rem;color:#84ead2;}
+    .grade-pin small {color:#d7e2f6;}
+    .result-space {height:125px;}
+    .mode-card {background:white;border:1px solid #e2e8f0;border-radius:16px;
+      padding:16px;min-height:130px;margin-bottom:14px;}
+    .mode-card p {color:#526277;}
+    @media(max-width:640px){.grade-pin {padding:12px 16px;gap:8px;}
+      .grade-pin strong {font-size:1.5rem;}.result-space {height:150px;}}
+    </style>""", unsafe_allow_html=True)
+    if 'page' not in st.session_state:
+        st.session_state.page = 'input'
 
-    with st.sidebar:
-        st.header('성적 입력')
+    if st.session_state.page == 'input':
+        st.caption('GRADE PATH · STEP 1 / 2')
+        st.title('나의 성적과 목표 입력 🎯')
+        st.write('현재 성적과 목표는 모두 **5등급제**로 입력하세요.')
         completed = st.selectbox('마지막 성적이 나온 학기', list(range(1, 6)),
-                                 index=1, format_func=lambda n: SEMESTERS[n-1])
-        st.caption('성적이 확정된 학기까지만 입력하세요. 낮은 숫자가 좋은 성적입니다.')
-        grades = []
-        for i in range(completed):
-            grades.append(st.number_input(SEMESTERS[i] + ' 평균', min_value=1., max_value=5.,
-                                           value=2.50, step=0.01, format='%.2f',
-                                           key=f'grade_{i}', help='5등급제 평균등급 · 1.00~5.00'))
-        st.divider()
-        target = st.number_input('최종 목표 평균 · 9등급제 추정 기준',
-                                 min_value=1., max_value=9., value=3.00,
-                                 step=0.01, format='%.2f', key='target')
-        st.caption('3학년 1학기까지 총 5개 학기를 동일 비중으로 계산합니다.')
+                                 index=1, format_func=lambda n: SEMESTERS[n-1], key='completed_input')
+        # 학기 선택을 폼 밖에 두어 해당 학기까지만 입력란을 즉시 표시한다.
+        with st.form('grade_form'):
+            st.subheader('학기별 평균 · 5등급제')
+            grades = []
+            for i in range(completed):
+                grades.append(st.number_input(SEMESTERS[i], min_value=1., max_value=5.,
+                    value=2.50, step=0.01, format='%.2f', key=f'grade_{i}'))
+            st.divider()
+            target = st.number_input('3학년 1학기까지 최종 목표 평균 · 5등급제',
+                min_value=1., max_value=5., value=2.00, step=0.01,
+                format='%.2f', key='target5')
+            st.caption('총 5개 학기 동일 비중 · 낮은 숫자가 더 좋은 성적입니다.')
+            submitted = st.form_submit_button('결과 및 로드맵 보기 →', type='primary', use_container_width=True)
+        if submitted:
+            st.session_state.result = {'grades': grades, 'target': target, 'completed': completed}
+            st.session_state.page = 'result'
+            st.rerun()
+        st.caption('9등급제 환산값은 결과 화면에서 과거 대입 결과와 비교하는 참고용으로만 표시합니다.')
+        return
 
+    data = st.session_state.result
+    grades, target, completed = data['grades'], data['target'], data['completed']
     current = sum(grades) / completed
     current9 = to_nine(current)
-    st.markdown(f'''<div class="grade-pin"><div><small>현재 누적 평균 · 9등급제 참고 추정</small><br>
-      <strong>{current9:.2f}등급</strong></div><div><small>입력한 5등급제 평균</small><br>
-      {current:.2f}등급 · {escape(SEMESTERS[completed-1])}까지</div></div>''', unsafe_allow_html=True)
-    st.caption('상단 성적 카드는 화면을 스크롤해도 따라옵니다. 사이드바 입력을 바꾸면 자동으로 다시 계산됩니다.')
-    st.warning('참고용 시뮬레이션입니다. 학기 평균만으로 실제 9등급제 성적을 복원할 수 없습니다. '
-               '대학별 공식 환산·합격 예측이 아니며 과목별 학점과 학년별 가중치는 반영하지 않습니다.')
-
+    st.markdown(f'''<div class="grade-pin"><div><small>현재 평균 · 5등급제</small><br>
+      <strong>{current:.2f}등급</strong></div><div><small>과거 대입 결과 비교용 · 9등급제 환산</small><br>
+      <strong>{current9:.2f}등급</strong></div></div>''', unsafe_allow_html=True)
+    st.markdown('<div class="result-space"></div>', unsafe_allow_html=True)
+    if st.button('← 성적·목표 수정', use_container_width=False):
+        st.session_state.page = 'input'
+        st.rerun()
+    st.caption('GRADE PATH · STEP 2 / 2')
+    st.title('나의 5등급제 목표 로드맵')
+    st.caption(f'{SEMESTERS[completed-1]}까지 입력 · 목표와 학기별 계획은 모두 5등급제 기준입니다.')
     remaining = 5 - completed
-    st.subheader('나의 목표 로드맵')
-    if remaining == 0:
-        if current9 <= target + 1e-9:
-            st.success(f'5개 학기 입력 완료! 현재 추정 평균 {current9:.2f}등급으로 목표를 충족합니다.')
-        else:
-            st.info(f'5개 학기 입력이 완료되어 남은 학기가 없습니다. 목표보다 추정 평균이 {current9-target:.2f}등급 높습니다.')
-    else:
-        best5 = (sum(grades) + remaining) / 5
-        worst5 = (sum(grades) + 5 * remaining) / 5
-        best9, worst9 = to_nine(best5), to_nine(worst5)
-        a,b,c = st.columns(3)
-        a.metric('최종 목표 · 9등급제 추정', f'{target:.2f}등급')
-        b.metric('남은 학기', f'{remaining}학기')
-        c.metric('모두 1등급일 때 최종 추정', f'{best9:.2f}등급')
-        # 목표는 정확히 같은 수치가 아니라 그 수치 이하(더 우수한 성적) 달성이다.
-        possible = target >= best9 - 1e-9
-        if not possible:
-            st.error(f'현재 입력과 추정 방식에서는 목표 달성이 어렵습니다. 남은 학기에 모두 5등급제 1.00등급을 받아도 '
-                     f'최종 추정치는 {best9:.2f}등급입니다. 아래는 가능한 최선의 로드맵입니다.')
-            required = 1.
-        elif target >= worst9 - 1e-9:
-            required = 5.
-            st.success('현재 성적이면 남은 학기 모두 5.00등급이어도 설정한 목표를 충족합니다. 목표를 더 높여보세요!')
-        else:
-            required = required_average(grades, remaining, target)
-            st.info('남은 학기는 아래 5등급제 목표대로 달성하면 설정한 최종 목표를 충족합니다. '
-                    '아래 계획의 학기별 목표를 그대로 따르거나 더 좋은 성적을 받으면 됩니다.')
+    c1, c2, c3 = st.columns(3)
+    c1.metric('현재 평균 · 5등급제', f'{current:.2f}등급')
+    c2.metric('최종 목표 · 5등급제', f'{target:.2f}등급')
+    c3.metric('남은 학기', f'{remaining}학기')
 
-        modes = [('steady', '⚖️ 꾸준히 모드', '매 학기 비슷하게 · 일정한 페이스로 목표까지'),
-                 ('growth', '🚀 우상향 모드', '뒤로 갈수록 더 좋은 등급 · 차근차근 실력 쌓기'),
-                 ('front', '🔥 선공후락 모드', '처음에 집중하고, 뒤에는 여유 있게')]
-        columns = st.columns(3)
-        for col, (key, title, description) in zip(columns, modes):
+    if remaining == 0:
+        if current <= target + 1e-9:
+            st.success('5개 학기 입력 완료! 최종 목표를 충족했습니다.')
+        else:
+            st.info('5개 학기 입력이 완료되어 남은 학기가 없습니다. 현재 평균은 목표를 충족하지 못했습니다.')
+    else:
+        best = (sum(grades) + remaining) / 5
+        required = required_average(grades, remaining, target)
+        if required < 1 - 1e-9:
+            st.error(f'현재 성적에서 목표 달성은 어렵습니다. 남은 학기 모두 1.00등급이면 '
+                     f'최종 평균은 {best:.3f}등급입니다. 아래는 가능한 최선의 계획입니다.')
+            required = 1.
+        elif required >= 5:
+            required = 5.
+            st.success('남은 학기 모두 5.00등급이어도 최종 목표를 충족합니다.')
+        else:
+            required = max(1., required)
+            st.info('아래 학기별 목표와 같거나 더 좋은 성적을 받으면 최종 목표를 충족합니다.')
+        modes = [('steady', '⚖️ 꾸준히 모드', '매 학기 비슷한 성적을 유지해요.'),
+                 ('growth', '🚀 우상향 모드', '뒤로 갈수록 더 좋은 성적을 받아요.'),
+                 ('front', '🔥 선공후락 모드', '초반에 집중하고 뒤에는 여유 있게.')]
+        for col, (key, title, description) in zip(st.columns(3), modes):
             with col:
                 plan = make_plan(required, remaining, key)
-                final5 = (sum(grades) + sum(plan)) / 5
-                final9 = to_nine(final5)
+                final = (sum(grades) + sum(plan)) / 5
                 st.markdown(f'<div class="mode-card"><h3>{title}</h3><p>{description}</p></div>', unsafe_allow_html=True)
-                st.caption('학기별 목표는 실제 입력 기준인 **5등급제 평균**입니다.')
-                rows = [{'남은 학기': SEMESTERS[completed+i], '목표 · 5등급제': f'{g:.2f}등급',
-                         '9등급제 참고 추정': f'{to_nine(g):.2f}등급'} for i,g in enumerate(plan)]
-                st.dataframe(rows, hide_index=True, use_container_width=True)
-                st.metric('최종 누적 · 9등급제 추정', f'{final9:.2f}등급')
-                st.caption(f'최종 5등급제 평균 {final5:.3f} · '+
-                           ('목표 충족 ✅' if final9 <= target + 1e-8 else '현재 조건의 최선'))
+                st.dataframe([{'학기': SEMESTERS[completed+i],
+                               '목표 · 5등급제': f'{g:.2f}등급'} for i, g in enumerate(plan)],
+                             hide_index=True, use_container_width=True)
+                st.metric('최종 예상 평균 · 5등급제', f'{final:.3f}등급')
+                st.caption('목표 충족 ✅' if final <= target + 1e-9 else '현재 조건의 최선')
         if remaining == 1:
-            st.caption('남은 학기가 한 번이라 세 모드의 계획이 동일합니다.')
+            st.caption('남은 학기가 하나이므로 세 모드의 목표가 같습니다.')
         elif required <= 1.000001 or required >= 4.999999:
-            st.caption('필요 평균이 1등급 또는 5등급 경계에 있어 세 모드의 계획이 동일합니다.')
-        st.caption('모드별 기본 변화 폭은 학기당 0.30등급이며, 1~5등급 경계를 넘지 않도록 자동 축소합니다. '
-                   '표시된 목표는 0.01등급 단위로 내림해 소수점 반올림 때문에 목표를 놓치지 않도록 했습니다.')
+            st.caption('성적 경계(1 또는 5등급)에 있어 세 모드의 목표가 같습니다.')
+        st.caption('계획은 1~5등급 범위에서 조정하고, 학기별 목표는 0.01 단위로 내림해 목표 달성을 보장합니다. '
+                   '최종 평균은 반올림 전 값으로 목표 충족 여부를 판단합니다.')
 
-    with st.expander('계산 방식과 한계 · 꼭 확인하세요'):
-        st.markdown("""**계산 기준**
-- 제공하신 사이트의 401개 환산값과 조회 규칙을 동일하게 적용합니다.
-- 입력 이하의 가장 가까운 0.01 단위 기준값을 선택합니다. 선형 보간하지 않습니다.
-- 예: 5등급제 **1.00 → 1.18**, **3.00 → 4.94**, **5.00 → 8.74**.
-- 학기별 평균을 동일 비중으로 평균한 다음 환산합니다. 환산값의 평균이 아닙니다.
-- 목표는 9등급제 환산값이 입력한 값 **이하**인 경우 달성입니다.
-- 로드맵은 남은 학기 성적의 합을 0.01 단위로 탐색해 환산표를 역산합니다.
-- 표는 앱에 내장되어 실행 중 사이트 접속이 필요하지 않습니다. 원본이 변경되어도 자동 갱신되지는 않습니다.
-
-**유의사항**
-원본 페이지가 대진대 연구자료 기반이라고 설명하는 상담 참고용 환산표입니다.
-어디가 공통 공식이나 대학별 실제 반영 점수가 아닙니다.
-과목별 학점과 학년별 반영 비중은 적용하지 않습니다. 대학 추천 기능은 포함하지 않습니다.
+    with st.expander('계산 기준 및 환산 출처'):
+        st.markdown("""- 현재 평균과 최종 목표는 **5등급제**입니다.
+- 1학년 1학기부터 3학년 1학기까지 **5개 학기를 동일 비중**으로 계산합니다.
+- 9등급제 환산값은 **과거 대입 결과 비교용 참고값**일 뿐 로드맵 계산에 사용하지 않습니다.
+- 환산은 제공 사이트의 401개 기준값을 그대로 사용하며, 입력 이하의 가장 가까운 값을 조회합니다.
+- 예: 1.00 → 1.18 / 3.00 → 4.94. 원본 변경 사항은 자동 갱신되지 않습니다.
+- 해당 사이트가 대진대 연구자료 기반으로 설명하는 참고용 표이며, 대학별 공식 반영 점수가 아닙니다.
+- 과목별 학점 및 학년별 가중치, 대학 추천 기능은 포함하지 않습니다.
 """)
-        st.dataframe([{'입력 · 5등급제': f'{g:.2f}', '환산 · 9등급제': f'{to_nine(g):.2f}'}
-                      for g in FIVE], hide_index=True, use_container_width=True)
-        st.markdown(f'[환산표 및 조회 방식 출처: 제공하신 등급 변환기]({SOURCE})')
-    st.caption('GRADE PATH · 성적은 가능성을 설계하기 위한 출발점입니다.')
+        st.markdown(f'[환산표 출처]({SOURCE})')
 
 
 if __name__ == '__main__':
